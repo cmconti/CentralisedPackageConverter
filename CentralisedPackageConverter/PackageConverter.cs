@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace CentralisedPackageConverter;
@@ -54,11 +55,11 @@ public class PackageConverter
                 return;
             }
         }
-        
+
         if (o.Revert)
         {
             ReadDirectoryPackagePropsFile(packageConfigPath);
-            
+
             projects.ForEach(proj => RevertProject(proj, o.DryRun, encoding, linewrap));
 
             if (!o.DryRun)
@@ -147,7 +148,7 @@ public class PackageConverter
         var xml = XDocument.Load(packageConfigPath);
 
         var packageVersions = GetDescendants(xml, "PackageVersion");
-        
+
         foreach (var packageVersion in packageVersions)
         {
             var package = GetAttributeValue(packageVersion, "Include");
@@ -159,10 +160,10 @@ public class PackageConverter
                 packagesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 this.referencesByConditionThenName[condition] = packagesByName;
             }
-        
+
             packagesByName[package] = version;
         }
-        
+
         Console.WriteLine($"Read {this.referencesByConditionThenName.Count} references from {packageConfigPath}");
     }
 
@@ -185,7 +186,7 @@ public class PackageConverter
         {
             if (string.IsNullOrEmpty(condition))
             {
-                lines.Add("  <ItemGroup>");    
+                lines.Add("  <ItemGroup>");
             }
             else
             {
@@ -238,7 +239,7 @@ public class PackageConverter
     private static string? GetAttributeValue(XElement? elem, string name)
     {
         // Use case-insensitive attribute lookup
-        var attr = elem?.Attributes().FirstOrDefault( x => 
+        var attr = elem?.Attributes().FirstOrDefault( x =>
             string.Equals( x.Name.LocalName, name, StringComparison.OrdinalIgnoreCase ));
 
         return attr?.Value;
@@ -298,7 +299,7 @@ public class PackageConverter
                 {
                     continue;
                 }
-                
+
                 version = versionElement.Value;
                 if (versionElement.PreviousNode is XText textNode)
                 {
@@ -310,7 +311,7 @@ public class PackageConverter
                     // TODO change to self closing?
                 }
             }
-            
+
             // If there is only an Update attribute left, and no child elements, then this node
             // isn't useful any more, so we can remove it entirely
             if (removeNodeIfEmpty && packageReference.Attributes().Count() == 1 && !packageReference.Elements().Any())
@@ -346,8 +347,18 @@ public class PackageConverter
         if (needToWriteChanges && !dryRun)
         {
             // this keeps the <xml element from appearing on the first line
-            var xmlText = Formatting.FormatLineWraps(xml.ToString(), lineWrap);
-            File.WriteAllText(csprojFile.FullName, xmlText, encoding);
+            //var xmlText = Formatting.FormatLineWraps(xml.ToString(), lineWrap);
+            //File.WriteAllText(csprojFile.FullName, xmlText, encoding);
+
+            XmlWriterSettings xws = new XmlWriterSettings();
+            xws.Indent = true;
+            xws.IndentChars = "  ";
+            xws.Encoding = encoding;
+
+            using (XmlWriter xw = XmlWriter.Create(csprojFile.FullName, xws))
+            {
+                xml.Save(xw);
+            }
         }
     }
 }
